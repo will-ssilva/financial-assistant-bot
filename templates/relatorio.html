@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Relatórios Financeiros</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Bootstrap 5 CDN -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- DataTables CSS -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .card {
+      margin-top: 20px;
+    }
+  </style>
+  <style>
+    body.dark-mode {
+      background-color: #121212;
+      color: #ffffff;
+    }
+
+    .dark-mode .card {
+      background-color: #1e1e1e;
+      border-color: #333;
+      color: #fff;
+    }
+
+    .dark-mode table {
+      background-color: #1e1e1e;
+      color: #fff;
+    }
+
+    .dark-mode .btn, .dark-mode .form-control {
+      background-color: #2c2c2c;
+      color: #fff;
+      border-color: #444;
+    }
+
+    .dark-mode .btn-primary {
+      background-color: #0d6efd;
+      border-color: #0d6efd;
+    }
+
+    .dark-mode .form-label {
+      color: #ccc;
+    }
+
+    .dark-mode table {
+      --bs-table-color: unset;
+      --bs-table-bg: unset;
+      --bs-table-striped-color: unset;
+      --bs-table-striped-bg: unset;
+      --bs-table-border-color: #444;
+      background-color: #1e1e1e;
+      color: #fff;
+    }
+
+    .dark-mode table thead {
+      background-color: #2a2a2a;
+    }
+
+    .dark-mode table tbody tr:hover {
+      background-color: #2c2c2c;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container py-4">
+  <h2 class="mb-4 text-center">📊 Relatórios Financeiros</h2>
+
+  <!-- Modo Dark/Light -->
+  <div class="form-check form-switch float-end me-3 mt-3">
+    <input class="form-check-input" type="checkbox" id="darkModeToggle" onchange="toggleDarkMode()">
+    <label class="form-check-label" for="darkModeToggle" id="darkModeLabel">🌙 Modo escuro</label>
+  </div>
+
+  <!-- Filtros -->
+  <div class="row mb-4">
+    <div class="col-md-3">
+      <label for="inicio" class="form-label">Data início:</label>
+      <input type="date" id="inicio" class="form-control">
+    </div>
+    <div class="col-md-3">
+      <label for="fim" class="form-label">Data fim:</label>
+      <input type="date" id="fim" class="form-control">
+    </div>
+    <div class="col-md-3 d-flex align-items-end">
+      <button class="btn btn-primary" onclick="gerarRelatorio()">Gerar Relatório</button>
+    </div>
+  </div>
+
+  <!-- Resumo geral -->
+  <div class="row text-center">
+    <div class="col-md-4">
+      <div class="card border-success">
+        <div class="card-body">
+          <h5 class="card-title">💰 Total Receitas</h5>
+          <p class="card-text fs-4 text-success" id="total-receitas">R$ 0,00</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-danger">
+        <div class="card-body">
+          <h5 class="card-title">💸 Total Despesas</h5>
+          <p class="card-text fs-4 text-danger" id="total-despesas">R$ 0,00</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border-primary">
+        <div class="card-body">
+          <h5 class="card-title">📈 Saldo</h5>
+          <p class="card-text fs-4 text-primary" id="saldo">R$ 0,00</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos -->
+  <div class="row mt-5">
+    <div class="col-md-6 d-flex flex-column align-items-center">
+      <h5 class="text-center">🗂️ Por Categoria</h5>
+      <div style="width: 100%; max-width: 400px; height: 300px;">
+        <canvas id="categoriaChart" style="width: 100%; height: 100%;"></canvas>
+      </div>
+    </div>
+    <div class="col-md-6 d-flex flex-column align-items-center">
+      <h5 class="text-center">📅 Por Dia</h5>
+      <div style="width: 100%; max-width: 400px; height: 300px;">
+        <canvas id="linhaChart" style="width: 100%; height: 100%;"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <h4 class="mt-5">Transações Detalhadas</h4>
+  <div class="table-responsive">
+    <table id="tabela" class="table table-striped">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Tipo</th>
+          <th>Descrição</th>
+          <th>Categoria</th>
+          <th>Valor (R$)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in transacoes %}
+        <tr>
+          <td>{{ t[4] }}</td> <!-- data -->
+          <td>{{ t[0] }}</td> <!-- tipo -->
+          <td>{{ t[1] }}</td> <!-- descricao -->
+          <td>{{ t[2] }}</td> <!-- categoria -->
+          <td>{{ '%.2f'|format(t[3]) }}</td> <!-- valor -->
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+<script>
+  let categoriaChart, linhaChart;
+
+  async function carregarDadosRelatorio() {
+    const userId = {{ user_id }};
+    const inicio = document.getElementById('inicio').value;
+    const fim = document.getElementById('fim').value;
+
+    const baseUrl = window.location.origin;
+    let url = `${baseUrl}/api/relatorio/${userId}`;
+    if (inicio && fim) {
+      url += `?inicio=${inicio}&fim=${fim}`;
+    }
+
+    try {
+      const res = await fetch(url);
+      const dados = await res.json();
+
+      // Atualizar totais
+      document.getElementById('total-receitas').textContent = `R$ ${dados.total_receitas.toFixed(2)}`;
+      document.getElementById('total-despesas').textContent = `R$ ${dados.total_despesas.toFixed(2)}`;
+      document.getElementById('saldo').textContent = `R$ ${dados.saldo.toFixed(2)}`;
+
+      // Limpar gráficos anteriores
+      if (categoriaChart) categoriaChart.destroy();
+      if (linhaChart) linhaChart.destroy();
+
+      // Gráfico de pizza por categoria
+      categoriaChart = new Chart(document.getElementById('categoriaChart'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(dados.por_categoria),
+          datasets: [{
+            label: 'Gastos por categoria',
+            data: Object.values(dados.por_categoria),
+            backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#0d6efd', '#20c997']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                usePointStyle: true,
+                pointStyle: 'circle'
+              }
+            }
+          }
+        }
+      });
+
+      // Gráfico de linha por dia
+      linhaChart = new Chart(document.getElementById('linhaChart'), {
+        type: 'line',
+        data: {
+          labels: dados.por_dia.map(d => d.data),
+          datasets: [{
+            label: 'Gastos diários',
+            data: dados.por_dia.map(d => d.valor),
+            borderColor: '#0d6efd',
+            backgroundColor: 'rgba(13,110,253,0.1)',
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true
+        }
+      });
+
+    } catch (error) {
+      console.error("Erro ao carregar dados do relatório:", error);
+    }
+  }
+
+  // Carrega relatório ao abrir a página
+  window.onload = () => {
+    carregarDadosRelatorio();
+
+    // Botão "Gerar Relatório"
+    document.querySelector('button.btn-primary').addEventListener('click', carregarDadosRelatorio);
+  };
+</script>
+<script>
+  function toggleDarkMode() {
+    const body = document.body;
+    const label = document.getElementById("darkModeLabel");
+
+    body.classList.toggle("dark-mode");
+
+    if (body.classList.contains("dark-mode")) {
+      label.textContent = "☀️ Modo claro";
+    } else {
+      label.textContent = "🌙 Modo escuro";
+    }
+  }
+  $(document).ready(function () {
+    $('#tabela').DataTable({
+      language: {
+        url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/pt-BR.json"
+      }
+    });
+  });
+</script>
+<!-- DataTables JS -->
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+</body>
+</html>
