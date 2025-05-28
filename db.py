@@ -3,7 +3,7 @@ import re
 from datetime import datetime, timedelta
 
 def init_db():
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
     # Mensagens (histórico IA)
@@ -33,14 +33,14 @@ def init_db():
     conn.close()
 
 def save_message(user_id, role, content):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO messages (user_id, role, content) VALUES (?, ?, ?)", (user_id, role, content))
     conn.commit()
     conn.close()
 
 def get_user_history(user_id, max_messages=10):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("SELECT role, content FROM messages WHERE user_id = ? ORDER BY id DESC LIMIT ?", (user_id, max_messages))
     rows = cursor.fetchall()
@@ -48,7 +48,7 @@ def get_user_history(user_id, max_messages=10):
     return [{"role": role, "content": content} for role, content in reversed(rows)]
 
 def save_transaction(user_id, tipo, descricao, categoria, valor, data):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO transactions (user_id, tipo, descricao, categoria, valor, data)
@@ -78,7 +78,7 @@ def parse_transaction(response_text):
 # === Novas Funções ===
 
 def get_summary_by_period(user_id, start_date, end_date):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("""
         SELECT tipo, descricao, categoria, valor, data
@@ -91,7 +91,7 @@ def get_summary_by_period(user_id, start_date, end_date):
     return rows
 
 def get_total_by_category(user_id):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("""
         SELECT categoria, SUM(valor)
@@ -104,7 +104,7 @@ def get_total_by_category(user_id):
     return rows
 
 def clear_user_data(user_id):
-    conn = sqlite3.connect("core_db.db")
+    conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM messages WHERE user_id = ?", (user_id,))
     cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
