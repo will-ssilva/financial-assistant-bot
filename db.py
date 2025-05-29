@@ -62,7 +62,7 @@ def parse_transaction(response_text):
         tipo = re.search(r"Tipo: (.+)", response_text).group(1).strip()
         descricao = re.search(r"Item: (.+)", response_text).group(1).strip()
         categoria = re.search(r"Categoria: (.+)", response_text).group(1).strip()
-        valor_str = re.search(r"Valor: R\$ ([\d\.,]+)", response_text).group(1).replace(",", ".")
+        valor_str = re.search(r"Valor: R\$ ([\d\.,]+)", response_text).group(1).replace('.', '').replace(",", ".")
         valor = float(valor_str)
         data = datetime.now().strftime("%Y-%m-%d")
         return {
@@ -72,10 +72,8 @@ def parse_transaction(response_text):
             "valor": valor,
             "data": data
         }
-    except Exception:
+    except Exception as e:
         return None
-
-# === Novas Funções ===
 
 def get_summary_by_period(user_id, start_date, end_date):
     conn = sqlite3.connect("database.db")
