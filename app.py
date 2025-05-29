@@ -1,15 +1,13 @@
-from fastapi import FastAPI, Request, Query
+import sqlite3
+from collections import defaultdict
+from datetime import date, datetime
+from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from bot.handlers import telegram_webhook
-from db import init_db
-
-from fastapi.middleware.cors import CORSMiddleware
-from db import get_summary_by_period, get_total_by_category
-from datetime import datetime
-from collections import defaultdict
-from datetime import date
+from db import init_db, get_summary_by_period
 
 load_dotenv()
 init_db()
@@ -46,7 +44,7 @@ async def relatorios(request: Request, user: int = 1586721273):  # ← permite t
 
 @app.get("/api/relatorio/{user_id}")
 async def api_relatorio(user_id: int = 1586721273, inicio: str = None, fim: str = None):
-    inicio = inicio or "2000-01-01"
+    inicio = inicio or "2025-01-01"
     fim = fim or datetime.today().strftime("%Y-%m-%d")
     dados = get_summary_by_period(user_id, inicio, fim)
 
@@ -74,6 +72,38 @@ async def api_relatorio(user_id: int = 1586721273, inicio: str = None, fim: str 
         "por_categoria": dict(por_categoria),
         "por_dia": [{"data": d, "valor": v} for d, v in sorted(por_dia.items())]
     })
+    
+@app.get("/admin/sql", response_class=HTMLResponse)
+async def form_sql(request: Request, msg: str = "", error: str = ""):
+    return templates.TemplateResponse("sql_console.html", {
+        "request": request,
+        "msg": msg,
+        "error": error
+    })
+
+@app.post("/admin/sql", response_class=HTMLResponse)
+async def execute_sql(request: Request, query: str = Form(...)):
+    try:
+        conn = sqlite3.connect("database.db")
+        cursor = conn.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+        conn.commit()
+        conn.close()
+        msg = f"✅ Query executada com sucesso. {len(results)} resultado(s)." if results else "✅ Query executada com sucesso."
+        if results:
+            msg += "<br><pre>" + "\n".join(str(r) for r in results) + "</pre>"
+        return templates.TemplateResponse("sql_console.html", {
+            "request": request,
+            "msg": msg,
+            "error": ""
+        })
+    except Exception as e:
+        return templates.TemplateResponse("sql_console.html", {
+            "request": request,
+            "msg": "",
+            "error": f"❌ Erro ao executar a query: {str(e)}"
+        })
 
 
 # Para rodar localmente: python -m uvicorn app:app --host 0.0.0.0 --port 8443
