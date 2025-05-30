@@ -29,6 +29,16 @@ def init_db():
         )
     """)
 
+    # Orçamento por categoria
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS budget (
+            user_id INTEGER,
+            categoria TEXT,
+            limite REAL,
+            PRIMARY KEY (user_id, categoria)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -108,3 +118,85 @@ def clear_user_data(user_id):
     cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
+
+
+# ==== NEW FEATURES 
+
+def set_budget(user_id, categoria, limite):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO budget (user_id, categoria, limite)
+        VALUES (?, ?, ?)
+    """, (user_id, categoria, limite))
+    conn.commit()
+    conn.close()
+
+def get_budgets_with_spending(user_id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.categoria, b.limite,
+            IFNULL(SUM(t.valor), 0)
+        FROM budget b
+        LEFT JOIN transactions t
+            ON b.user_id = t.user_id AND b.categoria = t.categoria
+            AND strftime('%Y-%m', t.data) = strftime('%Y-%m', DATE('now'))
+        WHERE b.user_id = ?
+        GROUP BY b.categoria, b.limite
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def check_budget_warnings(user_id):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT b.categoria, b.limite,
+            IFNULL(SUM(t.valor), 0)
+        FROM budget b
+        LEFT JOIN transactions t
+            ON b.user_id = t.user_id AND b.categoria = t.categoria
+            AND strftime('%Y-%m', t.data) = strftime('%Y-%m', DATE('now'))
+        WHERE b.user_id = ?
+        GROUP BY b.categoria, b.limite
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    avisos = []
+    for categoria, limite, gasto in rows:
+        if limite > 0:
+            perc = gasto / limite * 100
+            if perc > 100:
+                avisos.append(f"🚨 Você ultrapassou o orçamento de *{categoria}*! (R$ {gasto:.2f} de R$ {limite:.2f})".replace(".", ","))
+    return avisos
+
+def search_transactions(user_id, keyword):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    like_keyword = f"%{keyword}%"
+    cursor.execute("""
+        SELECT tipo, descricao, categoria, valor, data
+        FROM transactions
+        WHERE user_id = ? AND descricao LIKE ?
+        ORDER BY data DESC
+        LIMIT 10
+    """, (user_id, like_keyword))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_transactions_by_category(user_id, categoria):
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT tipo, descricao, valor, strftime('%d/%m/%Y', data)
+        FROM transactions
+        WHERE user_id = ? AND categoria = ? AND strftime('%Y-%m', data) = strftime('%Y-%m', DATE('now'))
+        ORDER BY data DESC
+    """, (user_id, categoria))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows

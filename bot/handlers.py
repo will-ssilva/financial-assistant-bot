@@ -2,7 +2,7 @@ import json
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
-from .logic import start, respond, resumo, total_categoria, limpar, relatorio
+from .logic import start, respond, resumo, total_categoria, limpar, relatorio, orcamento, buscar
 import os
 
 load_dotenv()
@@ -16,6 +16,8 @@ application.add_handler(CommandHandler("resumo", resumo))
 application.add_handler(CommandHandler("total", total_categoria))
 application.add_handler(CommandHandler("limpar", limpar))
 application.add_handler(CommandHandler("relatorio", relatorio))
+application.add_handler(CommandHandler("orcamento", orcamento))
+application.add_handler(CommandHandler("buscar", buscar))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, respond))
 
 async def telegram_webhook(request_data: str):

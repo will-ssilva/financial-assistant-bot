@@ -5,11 +5,12 @@ from telegram.ext import ContextTypes
 from .openrouter_client import query_openrouter
 from db import (
     save_message, get_user_history, save_transaction, parse_transaction,
-    get_summary_by_period, get_total_by_category, clear_user_data
+    get_summary_by_period, get_total_by_category, clear_user_data,
+    set_budget, get_budgets_with_spending, search_transactions, get_transactions_by_category
 )
 from utils.formatters import format_resumo, format_total_by_category
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 load_dotenv()
 
@@ -20,7 +21,7 @@ SYSTEM_PROMPT = """
 Você é Finno, um assistente financeiro pessoal inteligente, proativo e gente boa. Seu papel é ajudar o usuário a registrar, entender e melhorar suas finanças com linguagem simples, clara, divertida e visual.
 Sempre apresente-se primeiro em saudações.
 
-Quando o usuário enviar uma mensagem:
+Quando o usuário enviar uma mensagem que seja uma transação de receita ou despesa (tenha certeza que seja uma transação para enviar essa resposta):
 1. Se parecer uma movimentação financeira (ex: "Mercado 120", "Recebi 1000"), extraia e retorne:
   - Valor (R$ x,xx)
   - Descrição
@@ -43,6 +44,20 @@ Formato da resposta:
 
 3. Se não entender a mensagem, peça para o usuário reformular, de forma educada e divertida. Exemplo: "Eita! 😅 Não entendi muito bem... tenta mandar de outro jeito? Finno tá ligado, mas não faz milagre! 💡"
 
+5. Para definir a categoria de uma movimentação, use este mapeamento como referência:
+
+Alimentação: mercado, restaurante, comida, lanche, pizza, padaria
+Transporte: uber, gasolina, ônibus, metrô, combustível
+Saúde: remédio, consulta, psicólogo, dentista, farmácia
+Beleza: cabelereiro, manicure, barbearia, salão, maquiagem
+Moradia: aluguel, luz, água, energia, condomínio, internet
+Lazer: cinema, show, netflix, viagem, festa, jogo
+Educação: faculdade, curso, livro, apostila
+Vestuário: roupa, tênis, calçado, camisa, vestuário
+
+- Se não encontrar correspondência, use o bom senso com base na descrição e evite categorizações genéricas como "Lazer".
+- Se ainda estiver incerto, escolha "Outros" como categoria segura.
+
 Regras:
 - Seja breve, visual e leve.
 - Use linguagem informal mas respeitosa.
@@ -63,10 +78,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     user_message = update.message.text.strip()
+    
+    data_hoje = date.today().strftime('%d-%m-%Y')
 
     save_message(user_id, "user", user_message)
     history = get_user_history(user_id, MAX_HISTORY)
-    history.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+    history.insert(0, {"role": "system", "content": f"Hoje é dia {data_hoje}.{SYSTEM_PROMPT}"})
 
     try:
         reply = query_openrouter(history)
@@ -75,6 +92,12 @@ async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE):
         extracted = parse_transaction(reply)
         if extracted:
             save_transaction(user_id, **extracted)
+
+            # Verifica se atingiu/ultrapassou orçamento
+            from db import check_budget_warnings
+            avisos = check_budget_warnings(user_id)
+            for aviso in avisos:
+                await update.message.reply_text(aviso, parse_mode=ParseMode.MARKDOWN)
 
         await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
 
@@ -143,3 +166,88 @@ async def relatorio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Clique no botão abaixo para acessar seu relatório financeiro:",
         reply_markup=reply_markup
     )
+    
+async def orcamento(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    args = context.args
+
+    if len(args) == 2:
+        categoria = args[0].capitalize()
+        try:
+            limite = float(args[1].replace(",", "."))
+            set_budget(user_id, categoria, limite)
+            await update.message.reply_text(
+                f"📌 Limite de R$ {limite:.2f} definido para *{categoria}*".replace(".", ","),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except:
+            await update.message.reply_text("⚠️ Valor inválido. Use: /orcamento Alimentação 800")
+        return
+    elif len(args) == 1:
+        await update.message.reply_text("⚠️ Valor inválido. Use: /orcamento Alimentação 800")
+        return
+
+    # Listar orçamentos e gastos do mês
+    rows = get_budgets_with_spending(user_id)
+    if not rows:
+        await update.message.reply_text("📋 Nenhum orçamento definido ainda. Use: /orcamento Categoria Limite")
+        return
+
+    resposta = "📊 *Orçamentos do mês:*\n\n"
+    for categoria, limite, gasto in rows:
+        perc = gasto / limite * 100 if limite > 0 else 0
+        emoji = "🟢"
+        if perc >= 100:
+            emoji = "🔴"
+        elif perc >= 80:
+            emoji = "🟠"
+        resposta += f"{emoji} *{categoria}*: R$ {gasto:.2f} / R$ {limite:.2f} ({perc:.0f}%)\n".replace(".", ",")
+
+    await update.message.reply_text(resposta, parse_mode=ParseMode.MARKDOWN)
+    
+async def buscar(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.from_user.id
+    args = context.args
+    if not args:
+        await update.message.reply_text("❓ Use:\n- /buscar mercado\n- /buscar categoria Alimentação")
+        return
+
+    termo = " ".join(args).strip()
+
+    # Se for uma busca por categoria
+    if termo.lower().startswith("categoria "):
+        categoria = termo[10:].strip()
+        transacoes = get_transactions_by_category(user_id, categoria)
+
+        if not transacoes:
+            await update.message.reply_text(f"📂 Nenhuma transação encontrada para a categoria: *{categoria}*", parse_mode=ParseMode.MARKDOWN)
+            return
+
+        total = sum([t[2] for t in transacoes if t[0].lower() == "despesa"])
+        resposta = f"📊 *Resumo da categoria:* _{categoria}_ (mês atual)\n"
+        resposta += f"💸 Total gasto: R$ {total:.2f}\n\n".replace(".", ",")
+
+        for tipo, descricao, valor, data in transacoes:
+            emoji = "💰" if tipo.lower() == "receita" else "💸"
+            resposta += f"{emoji} {descricao} - R$ {valor:.2f} em {data}\n".replace(".", ",")
+
+        await update.message.reply_text(resposta.strip(), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Busca padrão por palavra-chave
+    termo = termo.lower()
+    resultados = search_transactions(user_id, termo)
+
+    if not resultados:
+        await update.message.reply_text(f"🔍 Nada encontrado para: *{termo}*", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    resposta = f"🔎 Resultados para: *{termo}*\n\n"
+    for tipo, descricao, categoria, valor, data in resultados:
+        emoji = "💰" if tipo.lower() == "receita" else "💸"
+        resposta += (
+            f"{emoji} *{descricao}* - R$ {valor:.2f}\n"
+            f"📅 {data} | 🗂️ {categoria} | {tipo}\n\n"
+        ).replace(".", ",")
+
+    await update.message.reply_text(resposta.strip(), parse_mode=ParseMode.MARKDOWN)
