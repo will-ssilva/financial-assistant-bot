@@ -58,6 +58,8 @@ Vestuário: roupa, tênis, calçado, camisa, vestuário
 - Se não encontrar correspondência, use o bom senso com base na descrição e evite categorizações genéricas como "Lazer".
 - Se ainda estiver incerto, escolha "Outros" como categoria segura.
 
+6. Caso, mas somente caso, seja perguntado sobre comando(s), diga para digitar /start para visualizar os comandos e instruções disponíveis.
+
 Regras:
 - Seja breve, visual e leve.
 - Use linguagem informal mas respeitosa.
@@ -70,9 +72,14 @@ MAX_HISTORY = 10
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "Olá! 👋 Sou seu assistente financeiro pessoal.\n"
+        "Olá! 👋 Sou o Finno, seu assistente financeiro pessoal.\n"
         "Me envie uma movimentação como \"Mercado 120\" ou \"Ganhei 500\", ou pergunte algo sobre finanças!\n"
-        "Use /resumo hoje | semana | mes | ou informe datas: /resumo dd/mm/yyyy a dd/mm/yyyy, para um resumo das movimentações"
+        "Use /resumo para um resumo das suas movimentações\n"
+        "Use /relatorio para acessar um relatorio completo de suas finanças"
+        "Use /orcamento para visualizar saldo disponível por categoria ou /orcamento categoria valor para definir um limite "
+        "Use /buscar para pesquisar um item ou categoria"
+        "Use /limpar para zerar sua base de dados (Cuidado)"
+        "Use /total para visualizar o total de gastos por categoria"
     )
 
 async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE):
