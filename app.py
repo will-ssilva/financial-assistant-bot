@@ -54,6 +54,8 @@ async def api_relatorio(user_id: int = 1586721273, inicio: str = None, fim: str 
     por_dia = defaultdict(float)
 
     for tipo, descricao, categoria, valor, data in dados:
+        if not isinstance(valor, float):
+            valor = float(valor)
         tipo = tipo.lower()
         if tipo == "receita":
             total_receitas += valor

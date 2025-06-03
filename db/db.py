@@ -112,7 +112,7 @@ def get_summary_by_period(user_id, start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT tipo, descricao, categoria, valor, data
+        SELECT tipo, descricao, categoria, valor, CAST(data AS CHAR) as data
         FROM transactions
         WHERE user_id = %s AND data BETWEEN %s AND %s
         ORDER BY data DESC
@@ -205,7 +205,7 @@ def search_transactions(user_id, keyword):
     cursor = conn.cursor()
     like_keyword = f"%{keyword}%"
     cursor.execute("""
-        SELECT tipo, descricao, categoria, valor, data
+        SELECT tipo, descricao, categoria, valor, CAST(data AS CHAR) as data
         FROM transactions
         WHERE user_id = %s AND descricao LIKE %s
         ORDER BY data DESC

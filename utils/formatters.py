@@ -1,5 +1,5 @@
 import locale
-from datetime import datetime
+from datetime import datetime, date
 
 def format_total_by_category(data):
     if not data:
