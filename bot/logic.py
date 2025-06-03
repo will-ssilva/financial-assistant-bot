@@ -3,7 +3,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from .openrouter_client import query_openrouter
-from db import (
+from db.db import (
     save_message, get_user_history, save_transaction, parse_transaction,
     get_summary_by_period, get_total_by_category, clear_user_data,
     set_budget, get_budgets_with_spending, search_transactions, get_transactions_by_category
@@ -101,7 +101,7 @@ async def respond(update: Update, context: ContextTypes.DEFAULT_TYPE):
             save_transaction(user_id, **extracted)
 
             # Verifica se atingiu/ultrapassou orçamento
-            from db import check_budget_warnings
+            from db.db_sqlite import check_budget_warnings
             avisos = check_budget_warnings(user_id)
             for aviso in avisos:
                 await update.message.reply_text(aviso, parse_mode=ParseMode.MARKDOWN)

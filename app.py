@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from bot.handlers import telegram_webhook
-from db import init_db, get_summary_by_period
+from db.db import init_db, get_summary_by_period
 
 load_dotenv()
 init_db()
