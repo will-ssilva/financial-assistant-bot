@@ -188,9 +188,13 @@
           <th class="text-nowrap">Descrição</th>
           <th class="text-nowrap">Categoria</th>
           <th class="text-nowrap">Valor (R$)</th>
+          <th class="text-nowrap">✏️</th>
         </tr>
       </thead>
       <tbody>
+        {% if not transacoes %}
+          <div class="alert alert-info">Nenhuma transação encontrada no período.</div>
+        {% endif %}
         {% for t in transacoes %}
         <tr>
           {% set ds = t[4].split('-') %}
@@ -198,12 +202,75 @@
           <td><span class="tipo-badge {{ 'despesa' if t[0] == 'Despesa' else 'receita' }}">{{ t[0] }}</span></td> <!-- tipo -->
           <td>{{ t[1] }}</td> <!-- descricao -->
           <td>{{ t[2] }}</td> <!-- categoria -->
-          <td>{{ '{:,.2f}'.format(t[3]).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td> <!-- valor -->
+          <td>{{ t[3].replace(',', 'X').replace('.', ',').replace('X', '.') }}</td>
+          {# <td>{{ '{:,.2f}'.format(t[3]).replace(',', 'X').replace('.', ',').replace('X', '.') }}</td> #} <!-- valor -->
+          <td>
+            <span 
+              onclick='abrirModalEditar({{ t|tojson }})' 
+              style="cursor: pointer; color: #0d6efd;" 
+              title="Editar">
+              ✏️
+            </span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  <!-- Modal de Edição -->
+  <div class="modal fade" id="modalEditar" tabindex="-1" aria-labelledby="modalEditarLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <form id="formEditar" onsubmit="salvarEdicao(event)">
+          <div class="modal-header">
+            <h5 class="modal-title" id="modalEditarLabel">Editar Transação</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="editar-id">
+
+            <div class="mb-3">
+              <label for="editar-tipo" class="form-label">Tipo</label>
+              <select class="form-select" id="editar-tipo" required>
+                <option value="Receita">Receita</option>
+                <option value="Despesa">Despesa</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="editar-descricao" class="form-label">Descrição</label>
+              <input type="text" class="form-control" id="editar-descricao" required>
+            </div>
+            <div class="mb-3">
+              <label for="editar-categoria" class="form-label">Categoria</label>
+              <input type="text" class="form-control" id="editar-categoria" required>
+            </div>
+            <div class="mb-3">
+              <label for="editar-valor" class="form-label">Valor (R$)</label>
+              <input type="number" class="form-control" id="editar-valor" step="0.01" required>
+            </div>
+            <div class="mb-3">
+              <label for="editar-data" class="form-label">Data</label>
+              <input type="date" class="form-control" id="editar-data" required>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1055">
+  <div id="toast-sucesso" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body">
+        ✅ Transação atualizada!
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Fechar"></button>
+    </div>
+  </div>
+</div>
 
 </div>
 <script>
@@ -312,10 +379,62 @@
     });
   });
 </script>
-<!-- DataTables JS -->
+<script>
+  let transacaoAtual = null;
+
+  function abrirModalEditar(transacao) {
+    transacaoAtual = transacao;
+
+    document.getElementById("editar-id").value = transacao[5];
+    document.getElementById("editar-tipo").value = transacao[0];
+    document.getElementById("editar-descricao").value = transacao[1];
+    document.getElementById("editar-categoria").value = transacao[2];
+    document.getElementById("editar-valor").value = transacao[3];
+    document.getElementById("editar-data").value = transacao[4];
+
+    const modal = new bootstrap.Modal(document.getElementById("modalEditar"));
+    modal.show();
+  }
+
+  async function salvarEdicao(event) {
+    event.preventDefault();
+
+    const id = document.getElementById("editar-id").value;
+    const tipo = document.getElementById("editar-tipo").value;
+    const descricao = document.getElementById("editar-descricao").value;
+    const categoria = document.getElementById("editar-categoria").value;
+    const valor = parseFloat(document.getElementById("editar-valor").value);
+    const data = document.getElementById("editar-data").value;
+
+    try {
+      const resposta = await fetch(`/api/editar_transacao/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tipo, descricao, categoria, valor, data })
+      });
+
+      if (resposta.ok) {
+        const toastEl = document.getElementById("toast-sucesso");
+        const toast = new bootstrap.Toast(toastEl);
+        //toast.show();
+        alert("✅ Transação atualizada!");
+        document.getElementById("modalEditar").querySelector(".btn-close").click();
+        location.reload(); // ou carregarDadosRelatorio() se preferir
+      } else {
+        alert("❌ Erro ao atualizar transação: " + result.message);
+      }
+    } catch (erro) {
+      console.error(erro);
+      alert("Erro ao enviar requisição.");
+    }
+  }
+</script>
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- DataTables -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
+<!-- Bootstrap JS com Popper -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -112,7 +112,7 @@ def get_summary_by_period(user_id, start_date, end_date):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT tipo, descricao, categoria, valor, CAST(data AS CHAR) as data
+        SELECT tipo, descricao, categoria, CAST(valor AS CHAR) as valor, CAST(data AS CHAR) as data, id
         FROM transactions
         WHERE user_id = %s AND data BETWEEN %s AND %s
         ORDER BY data DESC
@@ -226,6 +226,38 @@ def get_transactions_by_category(user_id, categoria):
         AND DATE_FORMAT(data, '%%Y-%%m') = DATE_FORMAT(CURDATE(), '%%Y-%%m')
         ORDER BY data DESC
     """, (user_id, categoria))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+# Editar transações
+def editar_transacao(id, tipo, descricao, categoria, valor, data):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            UPDATE transactions
+            SET tipo = %s,
+                descricao = %s,
+                categoria = %s,
+                valor = %s,
+                data = %s
+            WHERE id = %s
+        """, (tipo, descricao, categoria, valor, data, id))
+
+        conn.commit()
+        return cursor.rowcount  # Retorna o número de linhas afetadas
+
+    finally:
+        cursor.close()
+        conn.close()
+
+# Executar qualquer Query
+def execute_query(query):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(query)
     rows = cursor.fetchall()
     conn.close()
     return rows
